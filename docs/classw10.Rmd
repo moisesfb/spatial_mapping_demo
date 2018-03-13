@@ -1,0 +1,110 @@
+---
+title: "Untitled"
+author: "MoisesBezerra"
+date: "March 13, 2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+---
+title: "Spatial Mapping in R"
+author: "R.D. Avis"
+date: "3/13/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here) # for normalizing the path
+
+```
+
+# let's work with SF
+
+```{r}
+library(sf)
+library(tidyverse)
+
+df_locs<- read_csv("https://raw.githubusercontent.com/ryanpeek/mapping_in_R/master/data/hotsprings_CA.csv")
+
+# set names for cols
+df_locs <- df_locs %>% set_names(nm=c("State", "Lat", "lon", "Spring_name", "Temp_C", "Temp_F", "Area", "USGS_Quad"))
+glimpse(df_locs)
+
+# make longitude negative
+df_locs <- df_locs %>% 
+  mutate("lon"=lon*-1)
+
+# make temperature numeric
+df_locs <- df_locs %>% 
+  mutate_at(.vars = c("Temp_C", "Temp_F"), .funs = as.numeric)
+
+# let's make it spatial
+df_locs_sf <- st_as_sf(df_locs, 
+                       coords=c("lon", "Lat"),
+                       #coords=c(3, 2) # can use col numbers
+                       remove=F, # don't want remove the lat lon cols from dataframe    
+                       crs = 4326) # WGS84 GCS
+```
+
+### make a map!
+
+Let's use the mapview package.
+
+```{r}
+library(mapview)
+
+mapview(df_locs_sf)
+
+
+```
+
+
+## Let's crop to points only in Tulare county
+
+Let's only look for hot springs in Tulare County.
+
+```{r}
+#install.packages("USAboundaries")
+install.packages("USAboundaries")
+
+library(USAboundaries)
+
+tulare <- us_counties(resolution = "low", states = "CA") %>% 
+  filter(name=="Tulare")
+# make sure it worked with mapview
+
+mapview(tulare) + mapview(df_locs_sf)
+
+```
+
+
+
+## intersect the hotsprings with Tulare Co
+
+```{r}
+tul_hs <- st_intersection(df_locs_sf, tulare)
+
+mapview(tul_hs)
+```
+
+## add `ggmap` background
+
+```{r}
+install.packages("ggmap")
+library(ggmap)
+library(ggplot2)
+map1 <- get_map(location=c(-118.302, 36.23),
+                color="bw",
+                maptype="terrain",
+                source="google", 
+                zoom=7)
+ggmap(map1)
+
+ggmap(map1) +
+  geom_sf(data=tul_hs, aes(color=Temp_F), size=3,
+           inherit.aes=FALSE)
+
+```
+
+
